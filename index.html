@@ -8,26 +8,15 @@
     <style>
         :root { --primary: #007AFF; --success: #34c759; --bg: #f2f2f7; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: #1c1c1e; }
-        
         .card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
         h2 { margin: 0 0 15px 0; font-size: 1.2rem; display: flex; justify-content: space-between; }
-        
-        /* Goal Progress Section */
         .goal-row { margin-bottom: 12px; }
         .goal-label { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; font-weight: 500; }
         .bar-bg { background: #e5e5ea; height: 10px; border-radius: 5px; overflow: hidden; }
         .bar-fill { background: var(--success); height: 100%; width: 0%; transition: width 0.6s ease; }
-        .over-goal { background: #ff3b30 !important; }
-
-        /* Scanner Styling */
-        #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
-        
-        /* Result & Buttons */
+        #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; min-height: 250px; }
         #result-popup { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 25px; border-radius: 20px 20px 0 0; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); z-index: 100; }
         .btn { background: var(--primary); color: white; border: none; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: 600; width: 100%; margin-top: 10px; cursor: pointer; }
-        .btn-outline { background: #f2f2f7; color: #8e8e93; font-size: 12px; margin-top: 15px; text-decoration: underline; border:none; }
-
-        /* History List */
         .history-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f2f2f7; font-size: 14px; }
     </style>
 </head>
@@ -35,22 +24,13 @@
 
     <div class="card">
         <h2>🇬🇧 Daily Progress <span id="cal-summary" style="color:var(--primary)">0 / 2000</span></h2>
-        
         <div class="goal-row">
-            <div class="goal-label"><span>Calories (kcal)</span><span id="label-cal">0/2000</span></div>
+            <div class="goal-label"><span>Calories</span><span id="label-cal">0/2000</span></div>
             <div class="bar-bg"><div id="bar-cal" class="bar-fill"></div></div>
         </div>
         <div class="goal-row">
             <div class="goal-label"><span>Protein (g)</span><span id="label-pro">0/50</span></div>
             <div class="bar-bg"><div id="bar-pro" class="bar-fill" style="background:#5856d6"></div></div>
-        </div>
-        <div class="goal-row">
-            <div class="goal-label"><span>Carbs (g)</span><span id="label-carb">0/260</span></div>
-            <div class="bar-bg"><div id="bar-carb" class="bar-fill" style="background:#ff9500"></div></div>
-        </div>
-        <div class="goal-row">
-            <div class="goal-label"><span>Fat (g)</span><span id="label-fat">0/70</span></div>
-            <div class="bar-bg"><div id="bar-fat" class="bar-fill" style="background:#ffcc00"></div></div>
         </div>
     </div>
 
@@ -59,67 +39,57 @@
     <div class="card">
         <h3 style="margin-top:0; font-size: 1rem;">Logged Today</h3>
         <div id="history-list"></div>
-        <button class="btn-outline" onclick="if(confirm('Clear all?')){localStorage.clear(); location.reload();}">Reset Everything</button>
+        <button class="btn" style="background:none; color:gray; font-size:12px; text-decoration:underline;" onclick="localStorage.clear(); location.reload();">Reset Day</button>
     </div>
 
     <div id="result-popup">
-        <h3 id="food-name" style="margin:0">Searching...</h3>
-        <p id="food-brand" style="color:#8e8e93; margin:5px 0 15px 0">Brand</p>
+        <h3 id="food-name" style="margin:0">Found it!</h3>
+        <p id="food-brand" style="color:#8e8e93; margin:5px 0 15px 0"></p>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:15px;">
-            <div style="font-size:13px">🔥 <b id="pop-cal">0</b> kcal</div>
-            <div style="font-size:13px">💪 <b id="pop-pro">0</b>g Pro</div>
-            <div style="font-size:13px">🍞 <b id="pop-carb">0</b>g Carb</div>
-            <div style="font-size:13px">🥓 <b id="pop-fat">0</b>g Fat</div>
+            <div>🔥 <b id="pop-cal">0</b> kcal</div>
+            <div>💪 <b id="pop-pro">0</b>g Pro</div>
         </div>
-        <button class="btn" id="add-btn">Add 100g to Diary</button>
-        <button class="btn" style="background:#8e8e93; margin-top:5px;" onclick="document.getElementById('result-popup').style.display='none'">Cancel</button>
+        <button class="btn" id="add-btn">Add to Diary</button>
+        <button class="btn" style="background:#8e8e93;" onclick="document.getElementById('result-popup').style.display='none'">Cancel</button>
     </div>
 
     <script>
-        // --- DATA SETUP ---
-        let totals = JSON.parse(localStorage.getItem('ukTotals')) || { cal: 0, pro: 0, carb: 0, fat: 0 };
+        let totals = JSON.parse(localStorage.getItem('ukTotals')) || { cal: 0, pro: 0 };
         let history = JSON.parse(localStorage.getItem('ukHistory')) || [];
-        const GOALS = { cal: 2000, pro: 50, carb: 260, fat: 70 };
+        const GOALS = { cal: 2000, pro: 50 };
 
         function updateDisplay() {
-            // Update Labels
             document.getElementById('cal-summary').innerText = `${Math.round(totals.cal)} / ${GOALS.cal}`;
             document.getElementById('label-cal').innerText = `${Math.round(totals.cal)} / ${GOALS.cal}`;
             document.getElementById('label-pro').innerText = `${Math.round(totals.pro)} / ${GOALS.pro}`;
-            document.getElementById('label-carb').innerText = `${Math.round(totals.carb)} / ${GOALS.carb}`;
-            document.getElementById('label-fat').innerText = `${Math.round(totals.fat)} / ${GOALS.fat}`;
-
-            // Update Bars
-            ['cal', 'pro', 'carb', 'fat'].forEach(key => {
-                const perc = Math.min((totals[key] / GOALS[key]) * 100, 100);
-                const bar = document.getElementById(`bar-${key}`);
-                bar.style.width = perc + '%';
-                if(perc >= 100 && key !== 'pro') bar.classList.add('over-goal');
-            });
-
-            // Update History
-            const list = document.getElementById('history-list');
-            list.innerHTML = history.slice(-5).reverse().map(item => `
-                <div class="history-item">
-                    <span>${item.name}</span>
-                    <b>${Math.round(item.cal)} kcal</b>
-                </div>
+            document.getElementById('bar-cal').style.width = Math.min((totals.cal / GOALS.cal) * 100, 100) + '%';
+            document.getElementById('bar-pro').style.width = Math.min((totals.pro / GOALS.pro) * 100, 100) + '%';
+            document.getElementById('history-list').innerHTML = history.slice(-3).reverse().map(item => `
+                <div class="history-item"><span>${item.name}</span><b>${Math.round(item.cal)} kcal</b></div>
             `).join('');
         }
-
         updateDisplay();
 
-        // --- SCANNER SETUP ---
+        // IMPROVED SCANNER SETTINGS
         const scanner = new Html5QrcodeScanner("reader", { 
-            fps: 15, 
-            qrbox: { width: 280, height: 150 },
-            aspectRatio: 1.0
+            fps: 20, 
+            qrbox: { width: 280, height: 160 },
+            rememberLastUsedCamera: true,
+            // This tells the phone to focus on barcodes
+            videoConstraints: {
+                facingMode: "environment",
+                focusMode: "continuous",
+                width: { min: 640, ideal: 1280, max: 1920 },
+                height: { min: 480, ideal: 720, max: 1080 }
+            }
         });
 
-        scanner.render(async (barcode) => {
+        scanner.render(onScanSuccess);
+
+        async function onScanSuccess(barcode) {
             const popup = document.getElementById('result-popup');
             popup.style.display = 'block';
-            document.getElementById('food-name').innerText = "Loading...";
+            document.getElementById('food-name').innerText = "Searching UK Database...";
 
             try {
                 const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}?fields=product_name,nutriments,brands`);
@@ -128,43 +98,26 @@
                 if (data.status === 1) {
                     const p = data.product;
                     const n = p.nutriments;
-                    const item = {
-                        name: p.product_name || "Unknown Item",
-                        brand: p.brands || "UK Brand",
-                        cal: n['energy-kcal_100g'] || 0,
-                        pro: n.proteins_100g || 0,
-                        carb: n.carbohydrates_100g || 0,
-                        fat: n.fat_100g || 0
-                    };
+                    const cals = n['energy-kcal_100g'] || 0;
+                    const pro = n.proteins_100g || 0;
 
-                    document.getElementById('food-name').innerText = item.name;
-                    document.getElementById('food-brand').innerText = item.brand;
-                    document.getElementById('pop-cal').innerText = Math.round(item.cal);
-                    document.getElementById('pop-pro').innerText = item.pro;
-                    document.getElementById('pop-carb').innerText = item.carb;
-                    document.getElementById('pop-fat').innerText = item.fat;
+                    document.getElementById('food-name').innerText = p.product_name || "Unknown";
+                    document.getElementById('food-brand').innerText = p.brands || "";
+                    document.getElementById('pop-cal').innerText = Math.round(cals);
+                    document.getElementById('pop-pro').innerText = pro;
 
                     document.getElementById('add-btn').onclick = () => {
-                        totals.cal += item.cal;
-                        totals.pro += item.pro;
-                        totals.carb += item.carb;
-                        totals.fat += item.fat;
-                        history.push({name: item.name, cal: item.cal});
-                        
+                        totals.cal += cals;
+                        totals.pro += pro;
+                        history.push({name: p.product_name, cal: cals});
                         localStorage.setItem('ukTotals', JSON.stringify(totals));
                         localStorage.setItem('ukHistory', JSON.stringify(history));
-                        
                         updateDisplay();
                         popup.style.display = 'none';
-                        window.scrollTo(0,0);
                     };
-                } else {
-                    document.getElementById('food-name').innerText = "Product Not Found";
                 }
-            } catch (e) {
-                alert("Check your UK internet connection!");
-            }
-        });
+            } catch (e) { console.log(e); }
+        }
     </script>
 </body>
 </html>
