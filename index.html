@@ -1,57 +1,204 @@
-// Locate the 'onScanSuccess' function in your code and update it to this:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>UK Macro Master</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        :root { --primary: #007AFF; --success: #34c759; --pro: #5856d6; --carb: #ff9500; --fat: #ff3b30; --bg: #f2f2f7; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: #1c1c1e; padding-bottom: 50px; }
+        .card { background: white; border-radius: 16px; padding: 18px; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        h2 { margin: 0 0 15px 0; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center; }
+        .goal-row { margin-bottom: 12px; }
+        .goal-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; font-weight: 600; }
+        .bar-bg { background: #e5e5ea; height: 8px; border-radius: 4px; overflow: hidden; }
+        .bar-fill { height: 100%; width: 0%; transition: width 0.8s ease; }
+        #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; margin-bottom: 15px; }
+        .input-group { display: flex; gap: 8px; }
+        input { padding: 12px; border-radius: 10px; border: 1px solid #ddd; font-size: 16px; width: 100%; }
+        #result-popup { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 25px; border-radius: 20px 20px 0 0; box-shadow: 0 -5px 25px rgba(0,0,0,0.2); z-index: 1000; }
+        .btn { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 10px; }
+        .btn-sec { background: #e5e5ea; color: #333; }
+        .item-log { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f2f2f7; font-size: 13px; }
+        .history-day { font-size: 11px; padding: 10px 0; border-bottom: 1px solid #eee; color: #444; }
+        .edit-btn { font-size: 12px; color: var(--primary); font-weight: normal; border: 1px solid var(--primary); padding: 2px 8px; border-radius: 20px; }
+    </style>
+</head>
+<body>
 
-async function onScanSuccess(barcode) {
-    // 📳 HAPTIC FEEDBACK: Short, sharp buzz (200 milliseconds)
-    if (navigator.vibrate) {
-        navigator.vibrate(200); 
-    }
+    <div class="card">
+        <h2 id="current-date">Today <span class="edit-btn" onclick="editGoals()">Set Goals</span></h2>
+        <div class="goal-row">
+            <div class="goal-label"><span>Calories</span><span id="txt-cal">0 / 2000</span></div>
+            <div class="bar-bg"><div id="bar-cal" class="bar-fill" style="background:var(--success)"></div></div>
+        </div>
+        <div class="goal-row">
+            <div class="goal-label"><span>Protein</span><span id="txt-pro">0 / 50g</span></div>
+            <div class="bar-bg"><div id="bar-pro" class="bar-fill" style="background:var(--pro)"></div></div>
+        </div>
+        <div class="goal-row">
+            <div class="goal-label"><span>Carbs</span><span id="txt-carb">0 / 260g</span></div>
+            <div class="bar-bg"><div id="bar-carb" class="bar-fill" style="background:var(--carb)"></div></div>
+        </div>
+        <div class="goal-row">
+            <div class="goal-label"><span>Fat</span><span id="txt-fat">0 / 70g</span></div>
+            <div class="bar-bg"><div id="bar-fat" class="bar-fill" style="background:var(--fat)"></div></div>
+        </div>
+    </div>
 
-    const popup = document.getElementById('result-popup');
-    popup.style.display = 'block';
-    document.getElementById('pop-name').innerText = "Searching UK Database...";
+    <div id="reader"></div>
 
-    try {
-        const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}?fields=product_name,nutriments,brands`);
-        const data = await response.json();
+    <div class="card">
+        <h3>Quick Add</h3>
+        <div class="input-group">
+            <input type="text" id="m-name" placeholder="Item Name">
+            <input type="number" id="m-cal" placeholder="Cals" style="width:80px">
+            <button class="btn" onclick="manualAdd()" style="margin:0; width:60px">+</button>
+        </div>
+    </div>
 
-        if (data.status === 1) {
-            const p = data.product;
-            const n = p.nutriments;
+    <div class="card">
+        <h3>Today's Food</h3>
+        <div id="food-list"></div>
+    </div>
+
+    <div class="card">
+        <h3>7-Day History</h3>
+        <div id="history-list"></div>
+        <button class="btn btn-sec" style="font-size:10px; margin-top:15px;" onclick="if(confirm('Wipe everything?')){localStorage.clear(); location.reload();}">Hard Reset App</button>
+    </div>
+
+    <div id="result-popup">
+        <h3 id="pop-name">Searching...</h3>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:15px 0; font-size:13px;">
+            <div style="background:#f9f9f9; padding:8px; border-radius:8px;">🔥 <b id="val-cal">0</b> kcal</div>
+            <div style="background:#f9f9f9; padding:8px; border-radius:8px;">💪 P: <b id="val-pro">0</b>g</div>
+            <div style="background:#f9f9f9; padding:8px; border-radius:8px;">🍞 C: <b id="val-carb">0</b>g</div>
+            <div style="background:#f9f9f9; padding:8px; border-radius:8px;">🥑 F: <b id="val-fat">0</b>g</div>
+        </div>
+        <label style="font-size:12px; font-weight:bold;">Portion (1 = 100g/pack, 0.5 = half):</label>
+        <input type="number" id="weight-mult" value="1" step="0.1" style="margin-top:5px;">
+        <button class="btn" id="add-btn">Add to Diary</button>
+        <button class="btn btn-sec" onclick="document.getElementById('result-popup').style.display='none'">Cancel</button>
+    </div>
+
+    <script>
+        const today = new Date().toLocaleDateString('en-GB');
+        document.getElementById('current-date').prepend(today + " ");
+        
+        let log = JSON.parse(localStorage.getItem('ukLog')) || {}; 
+        let goals = JSON.parse(localStorage.getItem('ukGoals')) || { cal: 2000, pro: 50, carb: 260, fat: 70 };
+
+        if (!log[today]) log[today] = { cal: 0, pro: 0, carb: 0, fat: 0, items: [] };
+
+        function updateUI() {
+            const cur = log[today];
+            const updateBar = (id, val, goal) => {
+                document.getElementById(`txt-${id}`).innerText = `${Math.round(val)} / ${goal}${id==='cal'?'':'g'}`;
+                document.getElementById(`bar-${id}`).style.width = Math.min((val / goal) * 100, 100) + '%';
+            };
             
-            // Standardizing the nutrition grab
-            const vals = {
-                cal: n['energy-kcal_100g'] || 0,
-                pro: n.proteins_100g || 0,
-                carb: n.carbohydrates_100g || 0,
-                fat: n.fat_100g || 0
-            };
+            updateBar('cal', cur.cal, goals.cal);
+            updateBar('pro', cur.pro, goals.pro);
+            updateBar('carb', cur.carb, goals.carb);
+            updateBar('fat', cur.fat, goals.fat);
+            
+            document.getElementById('food-list').innerHTML = cur.items.slice(-5).reverse().map(i => `
+                <div class="item-log"><span>${i.name}</span><b>${Math.round(i.cal)} kcal</b></div>
+            `).join('');
 
-            document.getElementById('pop-name').innerText = p.product_name || "Unknown Item";
-            document.getElementById('val-cal').innerText = Math.round(vals.cal);
-            document.getElementById('val-pro').innerText = vals.pro;
-            document.getElementById('val-carb').innerText = vals.carb;
-            document.getElementById('val-fat').innerText = vals.fat;
-
-            document.getElementById('add-btn').onclick = () => {
-                const m = parseFloat(document.getElementById('weight-mult').value) || 1;
-                log[today].cal += (vals.cal * m);
-                log[today].pro += (vals.pro * m);
-                log[today].carb += (vals.carb * m);
-                log[today].fat += (vals.fat * m);
-                log[today].items.push({name: p.product_name, cal: (vals.cal * m)});
-                
-                // 📳 Second buzz to confirm 'Add' button was pressed
-                if (navigator.vibrate) navigator.vibrate(50);
-                
-                save();
-                document.getElementById('result-popup').style.display = 'none';
-                document.getElementById('weight-mult').value = 1;
-            };
-        } else {
-            document.getElementById('pop-name').innerText = "Product Not Found";
+            const historyHTML = Object.keys(log).sort().reverse().slice(1, 8).map(date => `
+                <div class="history-day">
+                    <b>${date}</b>: ${Math.round(log[date].cal)}cal | P:${Math.round(log[date].pro)}g | C:${Math.round(log[date].carb)}g | F:${Math.round(log[date].fat)}g
+                </div>
+            `).join('');
+            document.getElementById('history-list').innerHTML = historyHTML || '<p style="color:gray;font-size:11px;">History starts tomorrow!</p>';
         }
-    } catch (e) { 
-        console.log(e); 
-        document.getElementById('pop-name').innerText = "Network Error";
-    }
-}
+
+        function editGoals() {
+            goals.cal = prompt("Calories:", goals.cal) || goals.cal;
+            goals.pro = prompt("Protein (g):", goals.pro) || goals.pro;
+            goals.carb = prompt("Carbs (g):", goals.carb) || goals.carb;
+            goals.fat = prompt("Fat (g):", goals.fat) || goals.fat;
+            localStorage.setItem('ukGoals', JSON.stringify(goals));
+            updateUI();
+        }
+
+        function manualAdd() {
+            const name = document.getElementById('m-name').value || "Quick Add";
+            const cal = parseFloat(document.getElementById('m-cal').value) || 0;
+            if(cal > 0) {
+                log[today].cal += cal;
+                log[today].items.push({name, cal});
+                localStorage.setItem('ukLog', JSON.stringify(log));
+                updateUI();
+                document.getElementById('m-name').value = ''; document.getElementById('m-cal').value = '';
+            }
+        }
+
+        // TURBO SCANNER CONFIG with BACK CAMERA AUTO-SELECT
+        const scanner = new Html5QrcodeScanner("reader", { 
+            fps: 30, 
+            qrbox: { width: 280, height: 160 },
+            videoConstraints: { 
+                facingMode: "environment" // Strictly back camera
+            },
+            rememberLastUsedCamera: true
+        });
+
+        async function onScanSuccess(barcode) {
+            // 📳 Haptic Buzz on recognition
+            if (navigator.vibrate) navigator.vibrate(100);
+
+            const popup = document.getElementById('result-popup');
+            popup.style.display = 'block';
+            document.getElementById('pop-name').innerText = "Searching...";
+
+            try {
+                const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}?fields=product_name,nutriments,brands`);
+                const data = await res.json();
+                
+                if (data.status === 1) {
+                    const p = data.product;
+                    const n = p.nutriments;
+                    document.getElementById('pop-name').innerText = p.product_name || "Unknown";
+                    
+                    const vals = {
+                        cal: n['energy-kcal_100g'] || 0,
+                        pro: n.proteins_100g || 0,
+                        carb: n.carbohydrates_100g || 0,
+                        fat: n.fat_100g || 0
+                    };
+
+                    document.getElementById('val-cal').innerText = Math.round(vals.cal);
+                    document.getElementById('val-pro').innerText = vals.pro;
+                    document.getElementById('val-carb').innerText = vals.carb;
+                    document.getElementById('val-fat').innerText = vals.fat;
+
+                    document.getElementById('add-btn').onclick = () => {
+                        const m = parseFloat(document.getElementById('weight-mult').value) || 1;
+                        log[today].cal += (vals.cal * m);
+                        log[today].pro += (vals.pro * m);
+                        log[today].carb += (vals.carb * m);
+                        log[today].fat += (vals.fat * m);
+                        log[today].items.push({name: p.product_name, cal: (vals.cal * m)});
+                        
+                        if (navigator.vibrate) navigator.vibrate(50); // Small confirm buzz
+                        
+                        localStorage.setItem('ukLog', JSON.stringify(log));
+                        updateUI();
+                        document.getElementById('result-popup').style.display = 'none';
+                        document.getElementById('weight-mult').value = 1;
+                    };
+                } else {
+                    document.getElementById('pop-name').innerText = "Product Not Found";
+                }
+            } catch (e) { document.getElementById('pop-name').innerText = "Error Loading Data"; }
+        }
+
+        scanner.render(onScanSuccess);
+        updateUI();
+    </script>
+</body>
+</html>
